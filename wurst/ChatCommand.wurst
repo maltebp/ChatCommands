@@ -83,13 +83,13 @@ public function ArgumentType.toString() returns string
     running a command. */
 public enum CommandError
     NONE
-    UNKNOWN_SUB_COMMAND
-    MISSING_SUB_COMMAND
-    WRONG_ARG_TYPE
-    MISSING_ARGUMENT
-    UNKNOWN_OPTION
-    WRONG_OPTION_ARG_TYPE
-    MISSING_OPTION_ARG
+    SUB_COMMAND_REQUIRED
+    SUB_COMMAND_UNKNOWN
+    ARG_TYPE_WRONG
+    ARG_MISSING
+    OPTION_UNKNOWN
+    OPTION_ARG_MISSING
+    OPTION_ARG_TYPE_WRONG
 
 /** Turns the CommandError into a string format. The resulting string
     is the same as its enum name (i.e. NONE -> "NONE") */
@@ -97,20 +97,20 @@ public function CommandError.toString() returns string
     switch this
         case NONE
             return "NONE"
-        case MISSING_SUB_COMMAND
-            return "MISSING_SUB_COMMAND"
-        case MISSING_ARGUMENT
-            return "MISSING_ARGUMENT"
-        case WRONG_ARG_TYPE
-            return "WRONG_ARG_TYPE"
-        case UNKNOWN_OPTION
-            return "UNKNOWN_OPTION"
-        case MISSING_OPTION_ARG
-            return "MISSING_OPTION_ARG"
-        case WRONG_OPTION_ARG_TYPE
-            return "WRONG_OPTION_ARG_TYPE"
-        case UNKNOWN_SUB_COMMAND
-            return "UNKNOWN_SUB_COMMAND"
+        case SUB_COMMAND_REQUIRED
+            return "SUB_COMMAND_REQUIRED"
+        case SUB_COMMAND_UNKNOWN
+            return "SUB_COMMAND_UNKNOWN"
+        case ARG_MISSING
+            return "ARG_MISSING"
+        case ARG_TYPE_WRONG
+            return "ARG_TYPE_WRONG"
+        case OPTION_UNKNOWN
+            return "OPTION_UNKNOWN"
+        case OPTION_ARG_MISSING
+            return "OPTION_ARG_MISSING"
+        case OPTION_ARG_TYPE_WRONG
+            return "OPTION_ARG_TYPE_WRONG"
         default
             return "UNKNOWN"
 
@@ -133,12 +133,7 @@ tuple errorData(
 
 /** Resets the error data to 'no error' */
 function resetErrorData()
-    lastErrorData.error = CommandError.NONE
-    lastErrorData.option = ""
-    lastErrorData.chatMessage = ""
-    lastErrorData.wrongInput = ""
-    lastErrorData.expectedType = ArgumentType.NONE
-
+    lastErrorData = errorData(CommandError.NONE, "", "", "", ArgumentType.NONE)
 
 
 public interface CommandErrorCallback
@@ -190,11 +185,11 @@ class Command
             commandError("Command cannot contain spaces")
 
         if( defaultErrorCallbacks.size() == 0)
-            //defaultErrorCallbacks.put(Error.NO_DEFAULT, (p, stack) -> p.print("Missing sub command for command '" + stack + "'" )) 
-            //defaultErrorCallbacks.put(Error.WRONG_TYPE_INT, (p, stack) -> p.print("Wrong argument type (requires integer) for command '" + stack + "'" )) 
-            //defaultErrorCallbacks.put(Error.WRONG_TYPE_REAL, (p, stack) -> p.print("Wrong argument type (requires real) for command '" + stack + "'" )) 
-            defaultErrorCallbacks.put(CommandError.MISSING_ARGUMENT, (p, stack) -> p.print("Argument required for command '" + stack + "'" )) 
-            defaultErrorCallbacks.put(CommandError.UNKNOWN_SUB_COMMAND, (p, stack) -> p.print("Wrong sub command for command '" + stack + "'" )) 
+            // //defaultErrorCallbacks.put(Error.NO_DEFAULT, (p, stack) -> p.print("Missing sub command for command '" + stack + "'" )) 
+            // //defaultErrorCallbacks.put(Error.WRONG_TYPE_INT, (p, stack) -> p.print("Wrong argument type (requires integer) for command '" + stack + "'" )) 
+            // //defaultErrorCallbacks.put(Error.WRONG_TYPE_REAL, (p, stack) -> p.print("Wrong argument type (requires real) for command '" + stack + "'" )) 
+            // defaultErrorCallbacks.put(CommandError.MISSING_ARGUMENT, (p, stack) -> p.print("Argument required for command '" + stack + "'" )) 
+            // defaultErrorCallbacks.put(CommandError.UNKNOWN_SUB_COMMAND, (p, stack) -> p.print("Wrong sub command for command '" + stack + "'" )) 
                 
         for errorType in defaultErrorCallbacks
             errorCallbacks.put(errorType, defaultErrorCallbacks.get(errorType) )
@@ -225,12 +220,6 @@ class Command
     function addSubCommand(string command) returns Command
         if( subCommands.has(command) )
             commandError("Sub command '{0}' has already been created".format(command))
-        if( action != null )
-            commandError("Cannot add sub command {0} to command with action".format(command)) 
-        if( arguments.size() > 0 )
-            commandError("Cannot add sub command {0} to command with arguments".format(command)) 
-        if( options.size() > 0  )
-            commandError("Cannot add sub command {0} to command with options".format(command)) 
 
         let subCommand = new Command(command)
         subCommand.parent = this
@@ -290,10 +279,15 @@ class Command
 
 
 
+
+//================================================================================================================================================================================================
+// RUNNING COMMAND
+
 // Global lists used for all incoming commands
 let argumentList = new ArgumentList()
 let optionList = new OptionList() 
 
+// Resets data from previous command runs
 function resetData()
     argumentList.clear()
     optionList.clear()
@@ -302,6 +296,7 @@ function resetData()
 function chatTriggerAction()
     commandEntered(GetTriggerPlayer(), GetEventPlayerChatString())
 
+// Handle a input message from a given player, and runs a matching command
 function commandEntered(player enteringPlayer, string enteredCommand) returns bool
     let words = splitWords(enteredCommand)
     let rootCommand = words.dequeue()
@@ -318,39 +313,36 @@ function commandEntered(player enteringPlayer, string enteredCommand) returns bo
     return success
 
 
-
+// Runs a command with a given list of input words
 function runCommand( player enteringPlayer, Command originCommand, LinkedList<string> inputs ) returns boolean
-
     // Command with action (with no sub commands)
     var command = originCommand 
 
-    // Find command
-    while( command.subCommands.size() > 0 )
-        let input = inputs.dequeue()
-        if( input == "" )
-            lastErrorData.error = MISSING_SUB_COMMAND
-            return false
+    // Find Sub Command 
+    var input = inputs.getFirst()
+    while(command.subCommands.has(input))
         command = command.subCommands.get(input)
-        if( command == null )
-            lastErrorData.error = UNKNOWN_SUB_COMMAND
-            lastErrorData.wrongInput = input
-            return false
+        inputs.dequeue()      
+        input = inputs.getFirst()
 
-    // Checking Action
+    // Check if action exists
     if( command.action == null )
-        command.commandError("No subcommand or default action has been given")
-        return false
-
-    var success = false
+        if( command.subCommands.size() > 0 )
+            if( inputs.size() > 0)
+                lastErrorData.error = SUB_COMMAND_UNKNOWN
+                lastErrorData.wrongInput = inputs.getFirst()
+            else
+                lastErrorData.error = SUB_COMMAND_REQUIRED
+        else
+            command.commandError("No subcommand or default action has been given")
+        return false   
 
     // Interpreet Arguments
-    success = interpretInputArguments(command, inputs)
-    if( not success )
+    if( not interpretInputArguments(command, inputs) )
         return false
 
     // Interpreet Arguments
-    success = interpretInputOptions(command, inputs)
-    if( not success )
+    if( not interpretInputOptions(command, inputs) )
         return false
 
     argumentList.setCommand(command)
@@ -363,8 +355,6 @@ function runCommand( player enteringPlayer, Command originCommand, LinkedList<st
     return true
 
 
-
-    
 function interpretInputArguments( Command command, LinkedList<string> inputs ) returns bool
     
     for argument in command.arguments
@@ -374,7 +364,7 @@ function interpretInputArguments( Command command, LinkedList<string> inputs ) r
             var input = inputs.getFirst()
             while( input != "" and not command.options.has(input) )
                 if( (argument.argType == ArgumentType.INT and not input.isInt()) or (argument.argType == ArgumentType.REAL and not input.isReal()) )
-                    lastErrorData.error = WRONG_ARG_TYPE
+                    lastErrorData.error = ARG_TYPE_WRONG
                     lastErrorData.expectedType = argument.argType
                     return false
                 argumentList.addArgument(argument.argType, inputs.dequeue())
@@ -382,14 +372,14 @@ function interpretInputArguments( Command command, LinkedList<string> inputs ) r
                 input = inputs.getFirst()
 
             if( elementCount == 0 )
-                lastErrorData.error = MISSING_ARGUMENT
+                lastErrorData.error = ARG_MISSING
                 return false
 
         else
         // Single Argument
             let input = inputs.getFirst()
             if( input == "" )
-                lastErrorData.error = MISSING_ARGUMENT
+                lastErrorData.error = ARG_MISSING
                 return false
             else
                 var correctArg = true
@@ -401,7 +391,7 @@ function interpretInputArguments( Command command, LinkedList<string> inputs ) r
                 if( correctArg )
                     argumentList.addArgument(argument.argType, inputs.dequeue() )
                 else
-                    lastErrorData.error = WRONG_ARG_TYPE
+                    lastErrorData.error = ARG_TYPE_WRONG
                     lastErrorData.expectedType = argument.argType
                     return false            
     return true
@@ -420,7 +410,7 @@ function interpretInputOptions(Command command, LinkedList<string> inputs) retur
             if( option.argType == NONE )
                 optionList.add(option.label, "")
             else
-                lastErrorData.error = MISSING_OPTION_ARG
+                lastErrorData.error = OPTION_ARG_MISSING
                 lastErrorData.expectedType = option.argType
                 lastErrorData.option = option.label
                 return false
@@ -434,20 +424,20 @@ function interpretInputOptions(Command command, LinkedList<string> inputs) retur
 
             // Check if option exists
             if( option == null )
-                lastErrorData.error = UNKNOWN_OPTION
+                lastErrorData.error = OPTION_UNKNOWN
                 lastErrorData.wrongInput = optionLabel
                 return false
             
             // Check Option type
             if( option.argType == NONE or (option.argType == ArgumentType.INT and not optionValue.isInt()) or (option.argType == ArgumentType.REAL and not optionValue.isReal()) )
-                lastErrorData.error = WRONG_OPTION_ARG_TYPE
+                lastErrorData.error = OPTION_ARG_TYPE_WRONG
                 lastErrorData.expectedType = option.argType
                 lastErrorData.option = optionLabel
                 return false
             optionList.add(optionLabel, optionValue)
 
         else
-            lastErrorData.error = UNKNOWN_OPTION
+            lastErrorData.error = OPTION_UNKNOWN
             lastErrorData.wrongInput = word
             return false
 
@@ -583,7 +573,7 @@ function overallTest_1()
     
 
 @Test
-function subCommandTest()
+function subCommandTest_1()
     /* Test if sub commands are registered correctly, and correct errors
         are given  */
     var cmd = new ChatCommand("-root")
@@ -599,14 +589,81 @@ function subCommandTest()
 
     // Testing wrong calls
     assertTrue( not commandEntered(null, "-root sub") )
-    lastErrorData.error.assertEquals( CommandError.UNKNOWN_SUB_COMMAND )
+    lastErrorData.error.assertEquals( CommandError.SUB_COMMAND_UNKNOWN )
 
     assertTrue( not commandEntered(null, "-root sub sub1") )
-    lastErrorData.error.assertEquals( CommandError.UNKNOWN_SUB_COMMAND )
+    lastErrorData.error.assertEquals( CommandError.SUB_COMMAND_UNKNOWN )
     
     assertTrue( not commandEntered(null, "-root") )
-    lastErrorData.error.assertEquals( CommandError.MISSING_SUB_COMMAND )
+    lastErrorData.error.assertEquals( CommandError.SUB_COMMAND_REQUIRED )
 
+
+@Test
+function subCommandTest_2() 
+    // Tests that both root and sub command can have action
+
+    var root = new ChatCommand("-root")
+    ..addOptionInt("-o", 10)
+    ..addArgument(ArgumentType.INT)
+
+    var sub = root.addSubCommand("sub")
+    ..addOptionInt("-o", 10)
+    ..addArgument(ArgumentType.STRING)
+
+    // Test 1: Sub Command
+    root.setAction() (p, args, opts) ->
+        testFail("Root command was run")
+    sub.setAction() (p, args, opts) ->
+        args.getString().assertEquals("hello")
+        opts.getInt("-o").assertEquals(10)
+
+    assertTrue( commandEntered(null, "-root sub hello -o=10"))
+    lastErrorData.error.assertEquals(CommandError.NONE)
+
+    // Test 2: Root Command
+    root.setAction() (p, args, opts) ->
+        args.getInt().assertEquals(10)
+        opts.getInt("-o").assertEquals(20)
+    sub.setAction() (p, args, opts) ->
+        testFail("Sub command was run")
+
+    assertTrue( commandEntered(null, "-root 10 -o=20"))
+    lastErrorData.error.assertEquals(CommandError.NONE)
+
+    assertTrue( not commandEntered(null, "-root"))
+    lastErrorData.error.assertEquals(CommandError.ARG_MISSING)
+
+    assertTrue( not commandEntered(null, "-root asdok"))
+    lastErrorData.error.assertEquals(CommandError.ARG_TYPE_WRONG)
+
+    root.setAction(null)
+    assertTrue( not commandEntered(null, "-root"))
+    lastErrorData.error.assertEquals(CommandError.SUB_COMMAND_REQUIRED)
+
+
+    
+
+
+
+
+    // // Testing correct calls
+    // assertTrue( commandEntered(null, "-root sub1") )
+    // lastErrorData.error.assertEquals( CommandError.NONE )
+    
+    // assertTrue( commandEntered(null, "-root sub2") )
+    // lastErrorData.error.assertEquals( CommandError.NONE )
+
+    // // Testing wrong calls
+    // assertTrue( not commandEntered(null, "-root sub") )
+    // lastErrorData.error.assertEquals( CommandError.SUB_COMMAND_UNKNOWN )
+
+    // assertTrue( not commandEntered(null, "-root sub sub1") )
+    // lastErrorData.error.assertEquals( CommandError.SUB_COMMAND_UNKNOWN )
+    
+    // assertTrue( not commandEntered(null, "-root") )
+    // lastErrorData.error.assertEquals( CommandError.SUB_COMMAND_REQUIRED )
+    
+    
 
 
     
@@ -643,19 +700,19 @@ function optionEvaluationTest()
     resetData()
     input..clear()..add("o2=0.5","o1=0.6")
     assertTrue(interpretInputOptions(cmd, input))
-    lastErrorData.error.assertEquals(CommandError.WRONG_OPTION_ARG_TYPE)
+    lastErrorData.error.assertEquals(CommandError.OPTION_ARG_TYPE_WRONG)
 
     // Wrong argument for switch (should be none)
     resetData()
     input..clear()..add("o4=10")
     assertTrue(interpretInputOptions(cmd, input))
-    lastErrorData.error.assertEquals(CommandError.WRONG_OPTION_ARG_TYPE)
+    lastErrorData.error.assertEquals(CommandError.OPTION_ARG_TYPE_WRONG)
 
     // Missing Argument Type
     resetData()
     input..clear()..add("o2")
     assertTrue(interpretInputOptions(cmd, input))
-    lastErrorData.error.assertEquals(CommandError.MISSING_OPTION_ARG)
+    lastErrorData.error.assertEquals(CommandError.OPTION_ARG_MISSING)
 
     // Double option
     resetData()
@@ -667,13 +724,13 @@ function optionEvaluationTest()
     resetData()
     input..clear()..add("o5=hello")
     assertTrue(interpretInputOptions(cmd, input))
-    lastErrorData.error.assertEquals(CommandError.UNKNOWN_OPTION)
+    lastErrorData.error.assertEquals(CommandError.OPTION_UNKNOWN)
 
     // Wrong option 2
     resetData()
     input..clear()..add("thisisnotanoption")
     assertTrue(interpretInputOptions(cmd, input))
-    lastErrorData.error.assertEquals(CommandError.UNKNOWN_OPTION)
+    lastErrorData.error.assertEquals(CommandError.OPTION_UNKNOWN)
 
 
 @Test
@@ -691,14 +748,14 @@ function argumentEvaluationTest_Simple()
     // Wrong Type
     inputs..clear()..add("hello")
     assertTrue(interpretInputArguments(cmd, inputs))
-    assertTrue( lastErrorData.error == CommandError.WRONG_ARG_TYPE )
+    assertTrue( lastErrorData.error == CommandError.ARG_TYPE_WRONG )
     assertTrue( lastErrorData.expectedType == ArgumentType.INT)
 
     // Missing argument
     resetData()
     inputs.clear()
     assertTrue(interpretInputArguments(cmd, inputs))
-    lastErrorData.error.assertEquals(CommandError.MISSING_ARGUMENT)
+    lastErrorData.error.assertEquals(CommandError.ARG_MISSING)
     
 
 @Test
@@ -720,14 +777,14 @@ function argumentEvaluationTest_List()
     resetData()
     inputs.clear()
     assertTrue(interpretInputArguments(cmd, inputs))
-    lastErrorData.error.assertEquals(CommandError.MISSING_ARGUMENT)
+    lastErrorData.error.assertEquals(CommandError.ARG_MISSING)
 
     // Wrong argument type
     resetData()
     inputs.clear()
     inputs.add("100", "200", "300", "hello")
     assertTrue(interpretInputArguments(cmd, inputs))
-    lastErrorData.error.assertEquals(CommandError.WRONG_ARG_TYPE)
+    lastErrorData.error.assertEquals(CommandError.ARG_TYPE_WRONG)
     
 
 @Test
@@ -751,19 +808,19 @@ function argumentEvaluationTest_DoubleArgument()
     resetData()
     inputs.clear()
     assertTrue(interpretInputArguments(cmd, inputs))
-    lastErrorData.error.assertEquals(CommandError.MISSING_ARGUMENT)
+    lastErrorData.error.assertEquals(CommandError.ARG_MISSING)
 
     // Only first Arg
     resetData()
     inputs..clear()..add("100")
     assertTrue(interpretInputArguments(cmd, inputs))
-    lastErrorData.error.assertEquals(CommandError.MISSING_ARGUMENT)
+    lastErrorData.error.assertEquals(CommandError.ARG_MISSING)
 
     // Only second arg (error since first is int and second is string)
     resetData()
     inputs..clear()..add("hello")
     assertTrue(interpretInputArguments(cmd, inputs))
-    lastErrorData.error.assertEquals(CommandError.WRONG_ARG_TYPE)
+    lastErrorData.error.assertEquals(CommandError.ARG_TYPE_WRONG)
 
 
     

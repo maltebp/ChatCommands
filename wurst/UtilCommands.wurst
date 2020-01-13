@@ -1,2 +1,6 @@
 package UtilCommands
 
+var initialized = false
+
+// util help
+// util createunit help

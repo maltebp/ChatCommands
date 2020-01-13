@@ -2,12 +2,11 @@
 
 
 Chat Command:
-    ✔ Arguments
-    ✔ Options
-    ☐ Subcommands
-    ☐ Error messages
-    ☐ Full input in error data
-    ☐ Generic "help" message
+    ☐ Allow for default action AND sub commands
+    ☐ Create argument names
+    ☐ Error callbacks
+    ☐ Change UNKNOWN_OPTION and UNKNOWN_SUB_COMMAND into UNKNOWN Input
+    ☐ Utility Commands
 
 
 Utility Commands:
