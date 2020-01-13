@@ -2,13 +2,12 @@
 
 
 Chat Command:
-    ☐ Options
-    ☐ Parameters
-    ☐ Parameter List / multiple commands
+    ✔ Arguments
+    ✔ Options
     ☐ Subcommands
     ☐ Error messages
-    ☐ Generic "help" message
     ☐ Full input in error data
+    ☐ Generic "help" message
 
 
 Utility Commands:
