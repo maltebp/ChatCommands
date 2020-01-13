@@ -1,0 +1,56 @@
+package CC_WordSplitter
+
+import LinkedList
+
+
+// Splits an input string (i.e. chat message) into words
+public function splitWords(string input) returns LinkedList<string>
+    let words = new LinkedList<string>
+    var buildString = ""
+    var inQuoteSequence = false
+    // Quote sequence may contain white space
+
+    // Iteratae over all characters
+    for c in input
+        var completed = false
+        
+        if( c == "\"")
+            // Entereing quote sequeence (string sequence
+            // surrounded by quote - can include whitespace)
+            if( inQuoteSequence )
+                inQuoteSequence = false
+                completed = true 
+            else
+                inQuoteSequence = true
+        else if( c == " " and not inQuoteSequence)
+            completed = true
+        else
+            buildString += c
+
+        // Created a new word
+        if( completed and buildString != "" )
+            words.add(buildString)
+            buildString = "" 
+    
+    if( buildString != "" )
+        words.add(buildString)
+    return words
+
+
+//================================================================================================================================================================================================
+// TESTS
+
+@Test
+function commandStringTest()
+    
+    let testString = "hello world 123 \"quote string\" waddup yeah"
+    let commandString = splitWords(testString)
+
+    commandString.dequeue().assertEquals("hello")
+    commandString.dequeue().assertEquals("world")
+    commandString.dequeue().assertEquals("123")
+    commandString.dequeue().assertEquals("quote string")
+    commandString.dequeue().assertEquals("waddup")
+    commandString.dequeue().assertEquals("yeah")
+
+    commandString.dequeue().assertEquals("")

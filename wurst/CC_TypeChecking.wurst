@@ -1,0 +1,83 @@
+package CC_TypeChecking
+
+
+
+/**
+    Tests if the string is an integer.
+    Special cases:
+        - null -> false
+        - "" -> false
+        - 001 -> true
+*/
+public function string.isInt() returns boolean
+    if( this == null or this.length() == 0 )
+        return false
+
+    for c in this
+        if( c != "0" and c != "-" and c.toInt() == 0)
+            return false
+    return true
+
+/**
+    Tests if the string is a real 
+    Special cases:
+        - null -> false
+        - "" -> false
+*/
+public function string.isReal() returns boolean
+    if( this == null or this.length() == 0 )
+        return false
+
+    var foundDot = false
+    for c in this
+        if( c == ".")
+            if( foundDot )
+                return false
+            foundDot = true
+        else if ( c != "0" and c != "-" and c.toInt() == 0)
+            return false
+    return true
+
+
+// ==============================================================================================================================================
+// TESTS  
+
+@Test 
+public function testTypeChecking()
+
+    // Is Integer
+    null.isInt().assertFalse()
+    "".isInt().assertFalse()
+    "a".isReal().assertFalse()
+    "1a1".isInt().assertFalse()
+    "a1".isInt().assertFalse()
+    "1a".isInt().assertFalse()
+    "1 1".isInt().assertFalse()
+
+    "0.1".isInt().assertFalse()
+    ".1".isInt().assertFalse()
+    "1.".isInt().assertFalse()
+    "001".isInt().assertTrue()
+    "1345".isInt().assertTrue()
+    "-1".isInt().assertTrue()
+
+    // Is Real
+    null.isReal().assertFalse()
+    "".isReal().assertFalse()
+    "a".isReal().assertFalse()
+    "1a1".isReal().assertFalse()
+    "a1".isReal().assertFalse()
+    "1a".isReal().assertFalse()
+    "1,1".isReal().assertFalse()
+    "1.1.2".isReal().assertFalse()
+    "1 1".isReal().assertFalse()
+
+    "1".isReal().assertTrue()
+    "10.".isReal().assertTrue()
+    ".1".isReal().assertTrue()
+    "0.1".isReal().assertTrue()
+    "1.123".isReal().assertTrue()
+    "-1".isReal().assertTrue()
+    "-0.1".isReal().assertTrue()
+    "-.1".isReal().assertTrue()
+
