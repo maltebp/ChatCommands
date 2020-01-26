@@ -1,0 +1,92 @@
+package CC_CommandAction
+
+
+import LinkedList
+import CC_ChatCommand
+import CC_ArgumentType
+import HashMap
+
+
+
+class ArgumentList
+
+    protected let values = new LinkedList<string>
+    protected let types = new LinkedList<ArgumentType>
+    protected Command command = null
+
+    function setCommand(Command command)
+        this.command = command
+
+    protected function addArgument(ArgumentType argType, string value)
+        types.add(argType)
+        values.add(value)
+
+    function getInt() returns int
+        if( types.dequeue() != ArgumentType.INT )
+            command.commandError("Next argument is not an integer value")
+        return values.dequeue().toInt()
+
+    function getReal() returns real
+        if( types.dequeue() != ArgumentType.REAL )
+            command.commandError("Next argument is not a real value")
+        return values.dequeue().toReal()
+
+    function getString() returns string
+        if( types.dequeue() != ArgumentType.STRING )
+            command.commandError("Next argument is not a real value")
+        return values.dequeue()
+
+    function size() returns int
+        return values.size()
+
+    function hasNext() returns boolean
+        return values.size() > 0
+
+    protected function clear()
+        values.clear()
+        types.clear()
+        command = null
+
+
+class OptionList
+
+    protected let values = new IterableMap<string, string>
+    protected Command command
+
+    function setCommand(Command command)
+        this.command = command
+    
+    function add( string option, string value )
+        if(values.has(option))
+            values.remove(option)
+        values.put(option, value)
+
+    private function getOption(string option) returns Option
+        if( not command.getOptions().has(option) )
+            command.commandError("Cannot find option {0}".format(option))
+        return command.getOptions().get(option)
+
+    function getInt(string option) returns int
+        if( getOption(option).argType != INT )
+            command.commandError("Option {0} is not an integer value".format(option))
+        return values.has(option) ? values.get(option).toInt() : getOption(option).defaultValue.toInt()         
+
+    function getReal(string option) returns real
+        if( getOption(option).argType != REAL )
+            command.commandError("Option {0} is not a real value".format(option))
+        return values.has(option) ? values.get(option).toReal() : getOption(option).defaultValue.toReal()       
+
+    function getString(string option) returns string
+        if( getOption(option).argType != STRING )
+            command.commandError("Option {0} is not a string value".format(option))
+        return values.has(option) ? values.get(option) : getOption(option).defaultValue   
+    
+    function getBool(string option) returns bool
+        if( getOption(option).argType != NONE )
+            command.commandError("Option {0} is not a switch (boolean value)".format(option))
+        return values.has(option) 
+        
+    protected function clear()
+        values.flush()
+        command = null
+        

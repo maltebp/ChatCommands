@@ -1,6 +1,431 @@
 package UtilCommands
+import ChatCommands
+import LinkedList
+import ObjectIds
+import ErrorHandling
+import HashMap
+import RegisterEvents
+import ClosureForGroups
+
+
+
+
+@configurable public let AUTO_INITIALIZE = true
+@configurable public let UTILCOMMAND_PREFIX = "-u"
 
 var initialized = false
+let utilCommands = new LinkedList<Command>
+ChatCommand rootCommand = UTILCOMMAND_PREFIX != null and UTILCOMMAND_PREFIX.length() > 0 ? new ChatCommand(UTILCOMMAND_PREFIX) : null
 
-// util help
-// util createunit help
+
+
+// public function player.enableUtilCommands()
+//     if( not initialized )
+//         initialize()
+//     for command in utilCommands
+//         command.enableForPlayers(this)
+
+// public function player.disableUtilCommands()
+//     if( not initialized )
+//         initialize()
+//     for command in utilCommands
+//         command.enableForPlayers(this)
+
+        
+
+function defineRootCommand()
+    if( rootCommand != null )
+        error("Root command already defined")
+
+
+public function defineUtilCommand(string command) returns Command
+    if( not initialized )
+        initialize()
+    Command newCommand
+    if( rootCommand == null )
+        newCommand = new ChatCommand(command)
+    else
+        newCommand = rootCommand.addSubCommand(command)
+    utilCommands.add(newCommand)
+    return newCommand
+
+
+
+public function initialize()
+    initialized = true
+
+    if( rootCommand != null)
+        rootCommand.addHelpCommand("Series of utility commands")
+
+    defineUtilCommand_CreateUnit()
+    defineUtilCommand_SetOwner()
+    defineUtilCommand_KillUnit()
+    defineUtilCommand_Removeunit()
+    defineUtilCommand_Levels()
+    defineUtilCommand_Exp()
+    defineUtilCommand_TypeId()
+    defineUtilCommand_Ability()
+
+
+
+
+init
+
+    if( rootCommand == null )
+        print("Root command is null")
+
+    if( AUTO_INITIALIZE )
+        initialize()
+
+
+
+//================================================================================================================================================================================================
+// HELP COMMAND
+
+class HelpAction implements CommandAction
+
+    Command command
+    var description = ""
+    var optionDescriptions = new IterableMap<string, string>
+
+    construct(Command command, string description)
+        this.command = command
+        this.description = description
+
+    ondestroy
+        destroy optionDescriptions
+
+    override function run(player p, ArgumentList args, OptionList opts)
+        string helpString = ""
+
+        helpString += "\n" + command.getFullCommand() + " "
+        
+        for arg in command.getArguments()
+            helpString += "[{0}] ".format(arg.argType.toString())
+        helpString = helpString.highlight()
+        helpString += "\n" + description
+        
+        // Add Options
+        let optionMap = command.getOptions()
+        if( optionMap.size() > 0 )
+            helpString += "\nOptions:"
+            for optionLabel in command.getOptions()
+                let option = optionMap.get(optionLabel)
+                helpString += "\n    " + optionLabel
+                if( option.argType != NONE ) // Its a witch
+                    helpString += "=" + option.defaultValue
+                if( optionDescriptions.has(optionLabel) )
+                    helpString += "    " + optionDescriptions.get(optionLabel)
+            
+        // Add Subcommands 
+        let subCommands = command.getSubCommands()
+        if( subCommands.size() > 1 )
+            helpString += "\nSub Commands:"
+            for subCommand in subCommands
+                if( subCommand != "help")
+                    helpString += "\n    " + subCommand
+        
+        p.print(helpString, 25)
+
+
+    /** Adds a description to given option, when this HelpAction is run.
+        All options will be displayed, regardless of whther they have a 
+        description or not */
+    function setOptionDescription(string option, string description)
+        if( optionDescriptions.has(option))
+            optionDescriptions.getAndRemove(option)
+        optionDescriptions.put(option, description)
+        
+        
+/** Adds a help command to this command.
+    The help command will print the syntax of the command (i.e. -util createunit [STRING]),
+    the given description, as well as available options and sub commands.
+    Using the returned HelpAction, you may add descriptions to options. */
+public function Command.addHelpCommand(string description) returns HelpAction
+    let action = new HelpAction(this, description)
+    this.addSubCommand("help").setAction(action)    
+    return action
+
+
+
+
+//================================================================================================================================================================================================
+// HIGHLIGHTING
+
+@configurable public let HIGHTLIGHT_COLOR = color(255, 204, 0)
+
+/** Add a highlight color to the text string */
+function string.highlight() returns string
+    return HIGHTLIGHT_COLOR.toColorString() + this + "|r"
+                        
+
+
+
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// MOUSE POS
+
+var REGISTER_MOUSEPOS = true
+vec2 array mousePosition
+
+/** Returns the position of this player's mouse in map coordinates. */
+public function player.getMousePos() returns vec2
+    if not REGISTER_MOUSEPOS
+        error("PlayerMouse: Library is not activated!")
+    return mousePosition[this.getId()]
+    
+    
+init
+    if REGISTER_MOUSEPOS
+        registerPlayerEvent(EVENT_PLAYER_MOUSE_MOVE) ->
+            mousePosition[GetTriggerPlayer().getId()] = vec2( BlzGetTriggerPlayerMouseX(), BlzGetTriggerPlayerMouseY() )
+         
+
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// SELECTED UNIT
+
+
+
+
+
+
+//================================================================================================================================================================================================
+// COMMAND DEFINITIONS
+// Create a config package to override or disable any of these
+//================================================================================================================================================================================================
+
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Create Unit
+@configurable public function defineUtilCommand_CreateUnit()
+
+    let cmd = defineUtilCommand("createunit")
+    ..addArgument(ArgumentType.STRING)
+    ..addOptionInt("p", -1)
+    ..addOptionInt("n", 1)
+    ..setAction() (p, args, opts) ->
+        var unitOwnerId = opts.getInt("p")
+        var numberOfUnits = opts.getInt("n")
+        if( unitOwnerId == -1)
+            unitOwnerId = p.getId()
+        if( unitOwnerId > 25 or unitOwnerId < 0)
+            p.print("\nPlayer ID (p) must be between 0 and 25")
+        else if( numberOfUnits < 1)
+            p.print("\nNumber of units (n) must be higher than 0")
+        else
+            let idString = args.getString()
+            if( idString.length() > 4 or idString.length() < 4 )
+                p.print("\nUnit ID must be exactly 4 characters long")
+            else
+                let unitId = idString.fromRawCode()
+                unit u = null
+                for i=1 to numberOfUnits
+                    u = createUnit( Player(unitOwnerId), unitId, p.getMousePos(), angle(0))
+                if( u == null )
+                    p.print("\nDoesn't recognize unit type id '{0}'".format(idString))
+                else
+                    p.print("\nCreated {0} {1} for {2}".format( numberOfUnits.toString(), u.getName().highlight(), Player(unitOwnerId).getNameColored() ))
+    
+    cmd.addHelpCommand("Creates one or several units of given type ID (i.e 'hfoo') for a player. The unit is placed at the commanding players mouse position.")
+    ..setOptionDescription("p", "ID of player to create units for. -1 is commanding player.")
+    ..setOptionDescription("n", " Number of units to create")
+    
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Set Owner
+@configurable public function defineUtilCommand_SetOwner()
+    let cmd = defineUtilCommand("setowner")
+    ..addArgument(ArgumentType.INT)
+    ..addOptionSwitch("c")
+    ..setAction() (p, args, opts) ->
+        let playerId = args.getInt()
+        let changeColor = not opts.getSwitch("c")
+        if( playerId > 25 or playerId < 0)
+            p.print("\nPlayer ID (p) must be between 0 and 25")
+        else
+            forUnitsSelected(p) u ->
+                u.setOwner(Player(playerId), changeColor)
+        
+    cmd.addHelpCommand("Sets the owner of all selected units to player with given ID.")
+    ..setOptionDescription("c", "Maintain the color of current owner")
+    
+        
+        
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Kill Unit
+@configurable public function defineUtilCommand_KillUnit()
+    let cmd = defineUtilCommand("kill")
+    ..setAction() (p, args, opts) ->
+        forUnitsSelected(p) u ->
+            u.kill()
+        
+    cmd.addHelpCommand("Kill selected units.")
+    
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Remove Unit
+@configurable public function defineUtilCommand_Removeunit()
+    let cmd = defineUtilCommand("remove")
+    ..setAction() (p, args, opts) ->
+        forUnitsSelected(p) u ->
+            u.remove()
+        
+    cmd.addHelpCommand("Remove selected units.")
+
+
+
+
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Levels
+@configurable public function defineUtilCommand_Levels()
+    let cmd = defineUtilCommand("lvl")
+    ..addArgument(ArgumentType.STRING)
+    ..addArgument(ArgumentType.INT)
+    ..setAction() (p, args, opts) ->
+        let manipulation = args.getString()
+        let amount = args.getInt()
+        switch manipulation
+            case "add"
+                forUnitsSelected(p) u ->
+                    if( u.isType(UNIT_TYPE_HERO) )
+                        u.addLevels(amount, false)
+            case "remove"
+                forUnitsSelected(p) u ->
+                    if( u.isType(UNIT_TYPE_HERO) )
+                        u.removeLevels(amount)
+            case "set"
+                if( amount < 0 )
+                    p.print("Cannot set level to less than 1")
+                forUnitsSelected(p) u ->
+                    if( u.isType(UNIT_TYPE_HERO) )
+                        u.setLevel(amount, false)
+            default
+                p.print("First argument must be either 'add', 'remove' or 'set'")
+        
+    cmd.addHelpCommand("Manipulate the level of selected units. First arguments describes the manipulation (add, remove, set) and second arguments desribes the manipulation amount.")
+
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Experience
+@configurable public function defineUtilCommand_Exp()
+    let cmd = defineUtilCommand("exp")
+    ..addArgument(ArgumentType.STRING)
+    ..addArgument(ArgumentType.INT)
+    ..setAction() (p, args, opts) ->
+        let manipulation = args.getString()
+        let amount = args.getInt()
+        switch manipulation
+            case "add"
+                forUnitsSelected(p) u ->
+                    if( u.isType(UNIT_TYPE_HERO) )
+                        u.addXp(amount, false)
+            case "remove"
+                forUnitsSelected(p) u ->
+                    if( u.isType(UNIT_TYPE_HERO) )
+                        u.addXp(-amount, false)
+            case "set"
+                if( amount < 0 )
+                    p.print("Cannot set the experience to less than 1")
+                forUnitsSelected(p) u ->
+                    if( u.isType(UNIT_TYPE_HERO) )
+                        u.setXp(amount, false)
+            default
+                p.print("First argument must be either 'add', 'remove' or 'set'")
+        
+    cmd.addHelpCommand("Manipulate the experience of selected units. First arguments describes the manipulation (add, remove, set) and second arguments desribes the manipulation amount.")
+
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Type Id
+@configurable public function defineUtilCommand_TypeId()
+    let cmd = defineUtilCommand("typeid")
+    ..setAction() (p, args, opts) ->
+        forUnitsSelected(p) (u) ->
+            p.print("ID of {0} is {1}".format(u.getName().highlight(), u.getTypeId().toRawCode().highlight()))
+        
+    cmd.addHelpCommand("Print the type ID of the selected units. This ID can be used with 'createunit' command.")
+
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Ability
+@configurable public function defineUtilCommand_Ability()
+    var cmd = defineUtilCommand("abil")
+    cmd.addHelpCommand("Manipulate the abilities of selected units.")
+            
+    var cmdAdd = cmd.addSubCommand("add")
+    ..addArgument(ArgumentType.INT)
+    ..setAction() (p, args, opts) ->
+        let idString = args.getString()
+        if( idString.length() > 4 or idString.length() < 4 )
+            p.print("\nAbility ID must be exactly 4 characters long")
+        else
+            let abilId = idString.fromRawCode()
+            forUnitsSelected(p) (u) ->
+                if( u.getAbilityLevel(abilId) > 0 )
+                    p.print(u.getName().highlight() + " already has the ability " + GetAbilityName(abilId).highlight())
+                else
+                    u.addAbility(abilId)
+                    if( u.getAbilityLevel(abilId) > 0)
+                        p.print("Added ability {0} to {1}".format(GetAbilityName(abilId).highlight(), u.getName().highlight()))
+    cmdAdd.addHelpCommand("Add ability with given ID to selected units.")
+
+    var cmdRemove = cmd.addSubCommand("remove")
+    ..addArgument(ArgumentType.INT)
+    ..setAction() (p, args, opts) ->
+        let idString = args.getString()
+        if( idString.length() > 4 or idString.length() < 4 )
+            p.print("\nAbility ID must be exactly 4 characters long")
+        else
+            let abilId = idString.fromRawCode()
+            forUnitsSelected(p) (u) ->
+                if( u.getAbilityLevel(abilId) == 0 )
+                    p.print(u.getName().highlight() + " doesn't have the ability " + GetAbilityName(abilId).highlight())
+                else
+                    u.removeAbility(abilId)
+                    p.print("Removed ability {0} from {1}".format(GetAbilityName(abilId).highlight(), u.getName().highlight()))
+    cmdRemove.addHelpCommand("Remove ability with given ID from selected units.")
+
+    var cmdLvl = cmd.addSubCommand("lvl")
+    ..addArgument(ArgumentType.STRING)
+    ..setAction() (p, args, opts) ->
+        let idString = args.getString()
+        if( idString.length() > 4 or idString.length() < 4 )
+            p.print("\nAbility ID must be exactly 4 characters long")
+        else
+            let abilId = idString.fromRawCode()
+            p.print("\n")
+            forUnitsSelected(p) (u) ->
+                p.print("Level of ability {0} for {1} is {2}".format(GetAbilityName(abilId).highlight(), u.getName().highlight(), u.getAbilityLevel(abilId).toString().highlight() ))
+        
+    cmdLvl.addHelpCommand("Get the level of ability with given ID from selected units, or manipulate the ability levels using the sub commands.")
+    
+    var cmdLvl_add = cmdLvl.addSubCommand("set")
+    ..addArgument(ArgumentType.STRING)
+    ..addArgument(ArgumentType.INT)
+    ..setAction() (p, args, opts) ->
+        let idString = args.getString()
+        let lvl = args.getInt()
+        if( idString.length() > 4 or idString.length() < 4 )
+            p.print("\nAbility ID must be exactly 4 characters long")
+        else if( lvl < 1 )
+            p.print("Second argument (level) must be larger than 0")
+        else
+            let abilId = idString.fromRawCode()
+            forUnitsSelected(p) (u) -> 
+                if( not u.hasAbility(abilId))
+                    p.print("{0} doesn't have ability {1}".format(u.getName().highlight(), GetAbilityName(abilId).highlight()))
+                else
+                    u.setAbilityLevel(abilId, lvl)
+                    if( u.getAbilityLevel(abilId) == lvl)
+                        p.print("Set level of {0} for {1} to {2}".format(GetAbilityName(abilId).highlight(), u.getName().highlight(), u.getAbilityLevel(abilId).toString().highlight()))
+                    else
+                        p.print("Couldn't set level of {0} for {1} to {2}".format(GetAbilityName(abilId).highlight(), u.getName().highlight(), u.getAbilityLevel(abilId).toString().highlight()))
+    cmdLvl_add.addHelpCommand("Set the level of an ability with given ID for selected units to given lvl.")
+            
+        
+    
+        
+
+

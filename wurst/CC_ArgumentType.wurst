@@ -1,0 +1,26 @@
+package CC_ArgumentType
+
+
+/** Enum to represent the type of an argument. null == NONE */
+public enum ArgumentType
+    NONE
+    INT
+    REAL
+    STRING
+
+public function ArgumentType.toString() returns string
+    switch this
+        case NONE
+            return "NONE"
+        case INT
+            return "INT"
+        case REAL
+            return "REAL"
+        case STRING
+            return "STRING"
+
+/** Asserts whether this ArgumentType is the same as another */
+public function ArgumentType.assertEquals(ArgumentType expected)
+    if this != expected
+        testFail("Expected <" + expected.toString() + ">, Actual <" + this.toString() + ">")
+            

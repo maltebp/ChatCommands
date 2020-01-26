@@ -1,0 +1,136 @@
+package CC_Error
+
+import CC_ArgumentType
+import CC_ChatCommand
+import HashMap
+import ErrorHandling
+
+
+/** Enum type to represent a type of error which may occur when
+    running a command. */
+public enum CommandError
+    NONE
+    SUB_COMMAND_REQUIRED
+    SUB_COMMAND_UNKNOWN
+    ARG_TYPE_WRONG
+    ARG_MISSING
+    OPTION_UNKNOWN
+    OPTION_ARG_MISSING
+    OPTION_ARG_TYPE_WRONG
+
+/** Turns the CommandError into a string format. The resulting string
+    is the same as its enum name (i.e. NONE -> "NONE") */
+public function CommandError.toString() returns string
+    switch this
+        case NONE
+            return "NONE"
+        case SUB_COMMAND_REQUIRED
+            return "SUB_COMMAND_REQUIRED"
+        case SUB_COMMAND_UNKNOWN
+            return "SUB_COMMAND_UNKNOWN"
+        case ARG_MISSING
+            return "ARG_MISSING"
+        case ARG_TYPE_WRONG
+            return "ARG_TYPE_WRONG"
+        case OPTION_UNKNOWN
+            return "OPTION_UNKNOWN"
+        case OPTION_ARG_MISSING
+            return "OPTION_ARG_MISSING"
+        case OPTION_ARG_TYPE_WRONG
+            return "OPTION_ARG_TYPE_WRONG"
+        default
+            return "UNKNOWN"
+
+
+/** Tuple containing data about last error */
+tuple errorData(
+    CommandError error, // Type of the error
+    Command command, // The command giving an error 
+    string chatMessage, // Source chat message
+    string option, // Option causing the error (if known)
+    string wrongInput, // The wrong input
+    ArgumentType expectedType // The expected type (argument type or option argument type)
+)
+
+// Last error data
+public var lastErrorData = errorData(CommandError.NONE, null, "", "", "", ArgumentType.NONE)
+
+/** Get tuple containing data about last occuring error. The data will reset
+    when a new command is entered. */
+public function getLastCommandError() returns errorData
+    return lastErrorData
+
+/** Resets the error data to 'no error' */
+public function resetErrorData()
+    lastErrorData = errorData(CommandError.NONE, null, "", "", "", ArgumentType.NONE)
+
+
+
+//================================================================================================================================================================================================
+// Error Callback
+
+let errorCallbacks = new IterableMap<Command, CommandErrorCallback>
+
+/** Sets the error callback for this command, which will be run if a player
+    makes a syntax error when entering a command. Callback Structure:
+        (player commandPlayer, errorData error) -> ... */
+public function Command.setErrorCallback(CommandErrorCallback errorCallback)
+    if( errorCallbacks.get(this) != null )
+        destroy errorCallbacks.getAndRemove(this)
+    errorCallbacks.put(this, errorCallback)
+
+public interface CommandErrorCallback
+    function run( player p, errorData error )
+
+// Remove error callback if a command is destroyed 
+init
+    onCommandDestroyed( cmd -> errorCallbacks.remove(cmd) )
+
+
+/** Print the given error data as a default error message. These messages are
+also used if no error callback has been given. */
+public function printDefaultCommandError(player commandPlayer, errorData errData)
+    var errorMessage = ""
+    switch errData.error
+        case SUB_COMMAND_REQUIRED
+            var subCommandStr = ""  
+            for subCommand in errData.command.getSubCommands()
+                subCommandStr += subCommandStr == "" ? subCommand : ", " +subCommand
+            errorMessage = "Sub command is required. Available commands are: " + subCommandStr  
+        case SUB_COMMAND_UNKNOWN
+            var subCommandStr = ""  
+            for subCommand in errData.command.getSubCommands()
+                subCommandStr += subCommandStr == "" ? subCommand : ", " +subCommand
+            errorMessage = "Unknown subcommand " + errData.wrongInput +". Available commands are: " + subCommandStr
+        case ARG_MISSING
+            errorMessage = "Missing  " + errData.expectedType.toString() + " argument."
+        case ARG_TYPE_WRONG
+            errorMessage = "Argument '" + errData.wrongInput + "' must be of type "+errData.expectedType.toString().toLowerCase() + "."
+        case OPTION_UNKNOWN
+            errorMessage = "Option '" + errData.wrongInput + "' is unknown"
+        case OPTION_ARG_MISSING
+            errorMessage = "Option '" + errData.option + "' is missing an argument of type " + errData.expectedType.toString().toLowerCase() + "."
+        case OPTION_ARG_TYPE_WRONG
+            errorMessage = "Option '" + errData.option + "' argument '" + errData.wrongInput + "' must be of type " + errData.expectedType.toString().toLowerCase() + "."
+        default
+            errorMessage = "Unknown error"
+    commandPlayer.print("Error in '{0}': {1}".format(errData.command.getFullCommand(), errorMessage))
+
+
+/** Prints the error for this command. If a custom error callback has been set, it'll run that,
+     otherwise it will run the default error */
+public function Command.printError(player commandPlayer)
+    if( errorCallbacks.has(this) )
+        errorCallbacks.get(this).run(commandPlayer, lastErrorData)
+    else
+        printDefaultCommandError(commandPlayer, lastErrorData)
+
+
+
+
+//================================================================================================================================================================================================
+
+/** Assert whether this command error type is the same as another */
+public function CommandError.assertEquals(CommandError expected)
+    if this != expected
+        testFail("Expected <" + expected.toString() + ">, Actual <" + this.toString() + ">")

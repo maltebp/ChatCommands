@@ -1,0 +1,340 @@
+package CC_ChatCommand
+
+import LinkedList
+import HashMap
+import CC_ArgumentType
+import ErrorHandling
+
+
+public class ChatCommand extends Command
+
+    protected static let commandMap = new IterableMap<string, thistype>
+    protected static let commandTrigger = CreateTrigger()
+    
+    protected boolean array[24] enabledPlayers
+
+    /** Constructs a new chat command, which will trigger from the given
+        string parameter. */
+    construct(string command)
+        super(command)
+
+        if( commandMap.has(command) )
+            commandError("That chat command has already been created")
+
+        commandMap.put(command, this)
+
+        enableForAllPlayers()
+
+
+    ondestroy
+        commandMap.remove(command)
+
+    function enableForPlayers( vararg player players )
+        for p in players
+            enabledPlayers[p.getId()] = true
+
+    function disableForPlayers( vararg player players )
+        for p in players
+            enabledPlayers[p.getId()] = false
+        
+    function disableForAllPlayers()
+        for i=0 to 23  
+            enabledPlayers[i] = false
+
+    function enableForAllPlayers()
+        for i=0 to 23  
+            enabledPlayers[i] = true
+
+    function isEnabledForPlayer(player p) returns bool
+        return enabledPlayers[p.getId()]
+
+    static function getCommandMap() returns IterableMap<string, ChatCommand>
+        return commandMap
+
+    
+
+    
+
+    
+
+public interface CommandAction
+    function run(player whichPlayer, ArgumentList arguments, OptionList options)
+
+
+public class Argument
+    bool isList
+    ArgumentType argType
+
+    construct(ArgumentType argType, bool list)
+        this.argType = argType
+        this.isList = list
+        
+public class Option
+    string label
+    ArgumentType argType
+    string defaultValue
+
+    construct( string label, ArgumentType argType, string defaultValue )
+        this.label = label
+        this.argType = argType
+        this.defaultValue = defaultValue
+
+
+public class Command
+
+    protected let subCommands = new IterableMap<string, thistype>
+    protected string command
+    protected Command parent = null
+    protected CommandAction action = null
+
+    protected let arguments = new LinkedList<Argument>
+    protected let options = new IterableMap<string, Option>
+
+
+    construct(string command)
+        if( command == "" )
+            commandError("Command cannot be null")
+
+        if( command.contains(" ") )
+            commandError("Command cannot contain spaces")
+
+        this.command = command
+
+    ondestroy
+        for action in commandDestroyedActions
+            action.run(this)
+        destroy arguments
+        destroy options
+        for commandString in subCommands
+            destroy subCommands.get(commandString)
+
+    
+    
+        
+    function setAction( CommandAction action )
+        this.action = action
+
+        
+    /** Create and add a 'sub command' to the existing command. Adding the sub command 'sub' to the
+        parent command 'parent' results in the total command for the sub command: 'parent sub'. */
+    function addSubCommand(string command) returns Command
+        if( subCommands.has(command) )
+            commandError("Sub command '{0}' has already been created".format(command))
+
+        let subCommand = new Command(command)
+        subCommand.parent = this
+        subCommands.put(command, subCommand)
+
+        return subCommand
+
+    /** Returns the full command (with parent commands) */
+    function getFullCommand() returns string
+        var command = this.command
+        var parent = this.parent
+        while(parent != null)
+            command = parent.command + " " + command
+            parent = parent.parent
+        return command
+    
+    function getCommand() returns string
+        return command
+
+    function getArguments() returns LinkedList<Argument>
+        return arguments
+
+    /** Returns a map of sub command strings and the sub command objects */
+    function getSubCommands() returns IterableMap<string, Command>
+        return subCommands
+
+    /** Returns map of option words pointing to option objects */
+    function getOptions() returns IterableMap<string, Option>
+        return options
+
+    function getAction() returns CommandAction
+        return action
+
+    function addArgument( ArgumentType argumentType)
+        addArgument(argumentType, false)
+
+    function addListArgument( ArgumentType argumentType)
+        addArgument(argumentType, true)
+
+    function addOptionSwitch( string option )
+        addOption(option, ArgumentType.NONE, "")
+
+    function addOptionReal( string option, real defaultValue )
+        addOption(option, ArgumentType.REAL, defaultValue.toString() )
+
+    function addOptionString( string option, string defaultValue )
+        addOption(option, ArgumentType.STRING, defaultValue )
+
+    function addOptionInt( string option, int defaultValue )
+        addOption(option, ArgumentType.INT, defaultValue.toString())
+
+    function signatureString() returns string
+        var signature = getFullCommand()
+        for arg in arguments
+            signature += " " + arg.argType.toString().toUpperCase()
+        for label in options
+            let opt = options.get(label)
+            signature += " " + label + "=" + opt.defaultValue
+        return signature
+
+    
+    
+    private function addArgument( ArgumentType argumentType, boolean isList )
+        if( subCommands.size() > 0  )
+            commandError("Cannot add argument to command with sub commands")
+        if( arguments.peek() != null and arguments.peek().isList )
+            commandError("No arguments may preceed list argument")
+
+        arguments.add( new Argument(argumentType, isList ))
+
+    private function addOption( string option, ArgumentType argumentType, string defaultValue )
+        if( subCommands.size() > 0  )
+            commandError("Cannot add option {0} to command with sub commands".format(option) )
+        
+        if( options.has(option) )
+            commandError("Option {0} already exists".format(option))
+
+        options.put(option, new Option(option, argumentType, defaultValue))
+
+    /* Signals that the command was not setup correctly. Meant for map creator
+    not the player. */
+    function commandError(string error)
+        error("ChatCommand: {0} (in command '{1}')".format(error, this.getFullCommand()))
+        
+    static function destroyAllCommands()
+        for commandString in ChatCommand.commandMap
+            destroy  ChatCommand.commandMap.getAndRemove(commandString)
+
+
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Chat Command created action
+
+interface ChatCommandCreatedAction
+    function run(Command commmand)
+
+let commandCreatedActions = new LinkedList<ChatCommandCreatedAction>
+
+public function onChatCommandCreated( ChatCommandCreatedAction action)
+    commandCreatedActions.add(action)
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Command destroyed action
+
+interface CommandDestroyedAction
+    function run(Command command)
+
+let commandDestroyedActions = new LinkedList<CommandDestroyedAction>
+
+public function onCommandDestroyed(CommandDestroyedAction action)
+    commandDestroyedActions.add(action)
+
+
+
+
+
+
+public class ArgumentList
+
+    protected let values = new LinkedList<string>
+    protected let types = new LinkedList<ArgumentType>
+    protected Command command = null
+
+    function setCommand(Command command)
+        this.command = command
+
+    function addArgument(ArgumentType argType, string value)
+        types.add(argType)
+        values.add(value)
+
+    function getInt() returns int
+        if( types.dequeue() != ArgumentType.INT )
+            command.commandError("Next argument is not an integer value")
+        return values.dequeue().toInt()
+
+    function getReal() returns real
+        if( types.dequeue() != ArgumentType.REAL )
+            command.commandError("Next argument is not a real value")
+        return values.dequeue().toReal()
+
+    function getString() returns string
+        if( types.dequeue() != ArgumentType.STRING )
+            command.commandError("Next argument is not a real value")
+        return values.dequeue()
+
+    function size() returns int
+        return values.size()
+
+    function hasNext() returns boolean
+        return values.size() > 0
+
+    function clear()
+        values.clear()
+        types.clear()
+        command = null
+
+
+public class OptionList
+
+    protected let values = new IterableMap<string, string>
+    protected Command command
+
+    function setCommand(Command command)
+        this.command = command
+    
+    function add( string option, string value )
+        if(values.has(option))
+            values.remove(option)
+        values.put(option, value)
+
+    private function getOption(string option) returns Option
+        if( not command.options.has(option) )
+            command.commandError("Cannot find option {0}".format(option))
+        return command.options.get(option)
+
+    function getInt(string option) returns int
+        if( getOption(option).argType != INT )
+            command.commandError("Option {0} is not an integer value".format(option))
+        return values.has(option) ? values.get(option).toInt() : getOption(option).defaultValue.toInt()         
+
+    function getReal(string option) returns real
+        if( getOption(option).argType != REAL )
+            command.commandError("Option {0} is not a real value".format(option))
+        return values.has(option) ? values.get(option).toReal() : getOption(option).defaultValue.toReal()       
+
+    function getString(string option) returns string
+        if( getOption(option).argType != STRING )
+            command.commandError("Option {0} is not a string value".format(option))
+        return values.has(option) ? values.get(option) : getOption(option).defaultValue   
+    
+    function getSwitch(string option) returns bool
+        if( getOption(option).argType != NONE )
+            command.commandError("Option {0} is not a switch (boolean value)".format(option))
+        return values.has(option) 
+        
+    function clear()
+        values.flush()
+        command = null
+
+
+// ======================================================================================================================================================
+// TESTS
+
+// Custom Test methods -------------
+
+
+
+
+// -------------------------------------------------------------------------------------------------
+
+
+
+
+    
+    
+
+
+
