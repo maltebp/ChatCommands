@@ -9,8 +9,12 @@ import ClosureForGroups
 
 
 
-
+/** If true, all utility commands will be initialized at start of map. If false, 
+    commands won't be initialized until maunually done so using either initialize()
+    or  player.enableUtilCommands() */
 @configurable public let AUTO_INITIALIZE = true
+
+/** The prefix command for all utility commands */
 @configurable public let UTILCOMMAND_PREFIX = "-u"
 
 var initialized = false
@@ -18,40 +22,43 @@ let utilCommands = new LinkedList<Command>
 ChatCommand rootCommand = UTILCOMMAND_PREFIX != null and UTILCOMMAND_PREFIX.length() > 0 ? new ChatCommand(UTILCOMMAND_PREFIX) : null
 
 
-
+/** Enables  all utility commands (including custom commands) for the this player */
 public function player.enableUtilCommands()
     if( not initialized )
-        initialize()
+        initializeUtilCommands()
     rootCommand.enableForPlayers(this)
 
+
+/** Disables all utility commands (including custom commands) for the this player */
 public function player.disableUtilCommands()
     if( not initialized )
-        initialize()
+        initializeUtilCommands()
     rootCommand.disableForPlayers(this)
 
 
-function defineRootCommand()
-    if( rootCommand != null )
-        error("Root command already defined")
 
 
+/** Define a new Utility Command. All utility command are prefixed with UTILCOMMAND_PREFIX,
+    and may be disabled / enabled altogether using player.enable-/disableUtilCommands(). */
 public function defineUtilCommand(string command) returns Command
     if( not initialized )
-        initialize()
+        initializeUtilCommands()
     Command newCommand
     newCommand = rootCommand.addSubCommand(command)
     utilCommands.add(newCommand)
     return newCommand
 
 
-
-public function initialize()
+/** Initialize the utility commands. Before this is done, none of the commands will
+    be registered. */
+public function initializeUtilCommands()
     initialized = true
 
     if( rootCommand != null)
         rootCommand.addHelpCommand("Series of utility commands")
 
     defineUtilCommand_CreateUnit()
+    defineUtilCommand_CreateItem()
     defineUtilCommand_SetOwner()
     defineUtilCommand_KillUnit()
     defineUtilCommand_Removeunit()
@@ -65,14 +72,14 @@ public function initialize()
     defineUtilCommand_Armor()
     defineUtilCommand_Damage()
     defineUtilCommand_MoveSpeed()
-
-
+    defineUtilCommand_Gold()
+    defineUtilCommand_Lumber()
 
 
 
 init
     if( AUTO_INITIALIZE )
-        initialize()
+        initializeUtilCommands()
 
 
 
@@ -160,7 +167,9 @@ function string.highlight() returns string
 
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// MOUSE POS
+/* MOUSE POS
+    Used by several utility commands
+*/
 
 var REGISTER_MOUSEPOS = true
 vec2 array mousePosition
@@ -176,13 +185,6 @@ init
     if REGISTER_MOUSEPOS
         registerPlayerEvent(EVENT_PLAYER_MOUSE_MOVE) ->
             mousePosition[GetTriggerPlayer().getId()] = vec2( BlzGetTriggerPlayerMouseX(), BlzGetTriggerPlayerMouseY() )
-         
-
-
-//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// SELECTED UNIT
-
-
 
 
 
@@ -228,6 +230,36 @@ init
     ..setOptionDescription("p", "ID of player to create units for. -1 is commanding player.")
     ..setOptionDescription("n", " Number of units to create")
     
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Create Unit
+@configurable public function defineUtilCommand_CreateItem()
+
+    let cmd = defineUtilCommand("createitem")
+    ..addArgument(ArgumentType.STRING)
+    ..addOptionInt("n", 1)
+    ..setAction() (p, args, opts) ->
+        var numberOfItems = opts.getInt("n")
+        if( numberOfItems < 1)
+            numberOfItems = 1
+
+        let idString = args.getString()
+        if( idString.length() > 4 or idString.length() < 4 )
+            p.print("\nID must be exactly 4 characters long")
+        else
+            let itemId = idString.fromRawCode()
+            item createdItem = null
+            for i=1 to numberOfItems
+                createdItem = createItem(itemId, p.getMousePos())
+            if( createdItem == null )
+                p.print("\nDoesn't recognize item type id '{0}'".format(idString.highlight()))
+            else
+                p.print("\nCreated {0} {1}".format( numberOfItems.toString().highlight(), createdItem.getName().highlight() ))
+    
+    cmd.addHelpCommand("Creates one or several items of given type ID (i.e 'ratc'). The item is placed at the commanding players mouse position.")
+    ..setOptionDescription("n", " Number of items to create")
+    
+
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Set Owner
@@ -278,60 +310,50 @@ init
 // Levels
 @configurable public function defineUtilCommand_Levels()
     let cmd = defineUtilCommand("lvl")
-    ..addArgument(ArgumentType.STRING)
     ..addArgument(ArgumentType.INT)
+    ..addOptionSwitch("a")
     ..setAction() (p, args, opts) ->
-        let manipulation = args.getString()
         let amount = args.getInt()
-        switch manipulation
-            case "add"
-                forUnitsSelected(p) u ->
-                    if( u.isType(UNIT_TYPE_HERO) )
-                        u.addLevels(amount, false)
-            case "remove"
-                forUnitsSelected(p) u ->
-                    if( u.isType(UNIT_TYPE_HERO) )
+        forUnitsSelected(p) (u) ->
+            if( u.isType(UNIT_TYPE_HERO) )
+                if( opts.getSwitch("a") )
+                    if( amount < 0)
                         u.removeLevels(amount)
-            case "set"
-                if( amount < 0 )
-                    p.print("Cannot set level to less than 1")
-                forUnitsSelected(p) u ->
-                    if( u.isType(UNIT_TYPE_HERO) )
-                        u.setLevel(amount, false)
-            default
-                p.print("First argument must be either 'add', 'remove' or 'set'")
-        
-    cmd.addHelpCommand("Manipulate the level of selected units. First arguments describes the manipulation (add, remove, set) and second arguments desribes the manipulation amount.")
+                    if( amount > 0)
+                        u.addLevels(amount, false)
+                else
+                    if( amount < 1 )
+                        p.print("Can't set level to less than 1")
+                    else if( amount < u.getLevel())
+                        u.removeLevels(u.getLevel()-amount)
+                    else
+                        u.setLevel(u.getLevel(), false)
+            else
+                p.print("{0} is not a Hero unit".format(u.getName().highlight()))
+            
+    cmd.addHelpCommand("Set the level of selected Heroes to given value.")
+    ..setOptionDescription("a", "Adjust the level with the given value rather than setting it.")
 
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Experience
 @configurable public function defineUtilCommand_Exp()
     let cmd = defineUtilCommand("exp")
-    ..addArgument(ArgumentType.STRING)
     ..addArgument(ArgumentType.INT)
+    ..addOptionSwitch("o")
     ..setAction() (p, args, opts) ->
-        let manipulation = args.getString()
         let amount = args.getInt()
-        switch manipulation
-            case "add"
-                forUnitsSelected(p) u ->
-                    if( u.isType(UNIT_TYPE_HERO) )
-                        u.addXp(amount, false)
-            case "remove"
-                forUnitsSelected(p) u ->
-                    if( u.isType(UNIT_TYPE_HERO) )
-                        u.addXp(-amount, false)
-            case "set"
-                if( amount < 0 )
-                    p.print("Cannot set the experience to less than 1")
-                forUnitsSelected(p) u ->
-                    if( u.isType(UNIT_TYPE_HERO) )
-                        u.setXp(amount, false)
-            default
-                p.print("First argument must be either 'add', 'remove' or 'set'")
-        
-    cmd.addHelpCommand("Manipulate the experience of selected units. First arguments describes the manipulation (add, remove, set) and second arguments desribes the manipulation amount.")
+        forUnitsSelected(p) (u) ->
+            if( not u.isType(UNIT_TYPE_HERO))
+                p.print("{0} is not a Hero".format(u.getName().highlight()))
+            else
+                if( not opts.getSwitch("s"))
+                    u.addXp(amount, false)
+                else
+                    u.setXp(amount, false )
+
+    cmd.addHelpCommand("Adjust the experience of selected units with given value.")
+    ..setOptionDescription("s", "Set the experience to the value rather than adjusting it")
 
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -574,6 +596,55 @@ init
     ..setOptionDescription("m", "Restore only mana.")
 
             
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Gold
+@configurable public function defineUtilCommand_Gold()
+
+    let cmd = defineUtilCommand("gold")
+    ..addArgument(ArgumentType.INT)
+    ..addOptionInt("p", -1)
+    ..addOptionSwitch("a")
+    ..setAction() (p, args, opts) ->
+        var amount = opts.getInt("a")
+        var playerId = opts.getInt("p")
+        if( playerId == -1 )
+            playerId = p.getId()
+
+        if( opts.getSwitch("s"))
+            Player(playerId).setGold(amount)
+        else
+            Player(playerId).addGold(amount)
+
+    cmd.addHelpCommand("Add a given amount of gold to the player.")
+    ..setOptionDescription("s", "Set the gold to the given value rather than adjusting with it")
+    ..setOptionDescription("p=-1", "ID of Player to manipulate the gold of. If -1, the commanding player is used.")
+
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Lumber
+@configurable public function defineUtilCommand_Lumber()
+
+    let cmd = defineUtilCommand("lumber")
+    ..addArgument(ArgumentType.INT)
+    ..addOptionInt("p", -1)
+    ..addOptionSwitch("a")
+    ..setAction() (p, args, opts) ->
+        var amount = opts.getInt("a")
+        var playerId = opts.getInt("p")
+        if( playerId == -1 )
+            playerId = p.getId()
+
+        if( opts.getSwitch("s"))
+            Player(playerId).setLumber(amount)
+        else
+            Player(playerId).addLumber(amount)
+
+    cmd.addHelpCommand("Add a given amount of lumber to the player.")
+    ..setOptionDescription("s", "Set the lumber to the given value rather than adjusting with it")
+    ..setOptionDescription("p=-1", "ID of Player to manipulate the lumber of. If -1, the commanding player is used.")
+
+
+
 
 
 

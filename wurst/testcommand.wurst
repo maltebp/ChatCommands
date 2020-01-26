@@ -1,0 +1,13 @@
+package testcommand
+import ChatCommands
+import ClosureForGroups
+
+
+
+init
+    new ChatCommand("-damage")
+    ..addArgument(ArgumentType.INT)
+    ..setAction() (p, args, opts) ->
+        forUnitsSelected(p) u ->
+            let damage = args.getInt()
+            u.setHP( u.getHP() - damage) 
