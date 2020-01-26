@@ -19,19 +19,16 @@ ChatCommand rootCommand = UTILCOMMAND_PREFIX != null and UTILCOMMAND_PREFIX.leng
 
 
 
-// public function player.enableUtilCommands()
-//     if( not initialized )
-//         initialize()
-//     for command in utilCommands
-//         command.enableForPlayers(this)
+public function player.enableUtilCommands()
+    if( not initialized )
+        initialize()
+    rootCommand.enableForPlayers(this)
 
-// public function player.disableUtilCommands()
-//     if( not initialized )
-//         initialize()
-//     for command in utilCommands
-//         command.enableForPlayers(this)
+public function player.disableUtilCommands()
+    if( not initialized )
+        initialize()
+    rootCommand.disableForPlayers(this)
 
-        
 
 function defineRootCommand()
     if( rootCommand != null )
@@ -42,10 +39,7 @@ public function defineUtilCommand(string command) returns Command
     if( not initialized )
         initialize()
     Command newCommand
-    if( rootCommand == null )
-        newCommand = new ChatCommand(command)
-    else
-        newCommand = rootCommand.addSubCommand(command)
+    newCommand = rootCommand.addSubCommand(command)
     utilCommands.add(newCommand)
     return newCommand
 
@@ -65,15 +59,18 @@ public function initialize()
     defineUtilCommand_Exp()
     defineUtilCommand_TypeId()
     defineUtilCommand_Ability()
+    defineUtilCommand_Restore()
+    defineUtilCommand_Mana()
+    defineUtilCommand_Health()
+    defineUtilCommand_Armor()
+    defineUtilCommand_Damage()
+    defineUtilCommand_MoveSpeed()
+
 
 
 
 
 init
-
-    if( rootCommand == null )
-        print("Root command is null")
-
     if( AUTO_INITIALIZE )
         initialize()
 
@@ -355,7 +352,7 @@ init
     cmd.addHelpCommand("Manipulate the abilities of selected units.")
             
     var cmdAdd = cmd.addSubCommand("add")
-    ..addArgument(ArgumentType.INT)
+    ..addArgument(ArgumentType.STRING)
     ..setAction() (p, args, opts) ->
         let idString = args.getString()
         if( idString.length() > 4 or idString.length() < 4 )
@@ -372,7 +369,7 @@ init
     cmdAdd.addHelpCommand("Add ability with given ID to selected units.")
 
     var cmdRemove = cmd.addSubCommand("remove")
-    ..addArgument(ArgumentType.INT)
+    ..addArgument(ArgumentType.STRING)
     ..setAction() (p, args, opts) ->
         let idString = args.getString()
         if( idString.length() > 4 or idString.length() < 4 )
@@ -418,14 +415,168 @@ init
                     p.print("{0} doesn't have ability {1}".format(u.getName().highlight(), GetAbilityName(abilId).highlight()))
                 else
                     u.setAbilityLevel(abilId, lvl)
-                    if( u.getAbilityLevel(abilId) == lvl)
-                        p.print("Set level of {0} for {1} to {2}".format(GetAbilityName(abilId).highlight(), u.getName().highlight(), u.getAbilityLevel(abilId).toString().highlight()))
-                    else
-                        p.print("Couldn't set level of {0} for {1} to {2}".format(GetAbilityName(abilId).highlight(), u.getName().highlight(), u.getAbilityLevel(abilId).toString().highlight()))
+                    p.print("Set level of {0} for {1} to {2}".format(GetAbilityName(abilId).highlight(), u.getName().highlight(), u.getAbilityLevel(abilId).toString().highlight()))
+                
     cmdLvl_add.addHelpCommand("Set the level of an ability with given ID for selected units to given lvl.")
             
-        
+
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Health
+@configurable public function defineUtilCommand_Health()
     
-        
+    let cmd = defineUtilCommand("health")
+    ..addArgument(ArgumentType.INT)
+    ..addOptionSwitch("a")
+    ..addOptionSwitch("c")
+    ..setAction() (p,args,opts) ->
+        var current = opts.getSwitch("c")
+        var amount = args.getInt()
+        var adjust = opts.getSwitch("a")
+        if( not adjust )
+            forUnitsSelected(p) u ->
+                if( current )
+                    u.setHP(amount.toReal())
+                else
+                    u.setMaxHP(amount, true)
+        else
+            forUnitsSelected(p) u ->
+                if( current )
+                    u.addHP(amount.toReal())
+                else
+                    u.setMaxHP((u.getMaxHP()+amount).toInt(), true)
+
+    cmd.addHelpCommand("Set or adjust the current or total health of selected units by the given amount.")
+    ..setOptionDescription("c", "Manipulate the current rather than total health.")
+    ..setOptionDescription("a", "Adjust the health rather setting it")
+
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Mana
+@configurable public function defineUtilCommand_Mana()
+    
+    let cmd = defineUtilCommand("mana")
+    ..addArgument(ArgumentType.INT)
+    ..addOptionSwitch("a")
+    ..addOptionSwitch("c")
+    ..setAction() (p,args,opts) ->
+        var current = opts.getSwitch("c")
+        var amount = args.getInt()
+        var adjust = opts.getSwitch("a")
+        if( not adjust )
+            forUnitsSelected(p) u ->
+                if( current )
+                    u.setMana(amount.toReal())
+                else
+                    u.setMaxMana(amount, true)
+        else
+            forUnitsSelected(p) u ->
+                if( current )
+                    u.addMana(amount.toReal())
+                else
+                    u.setMaxMana((u.getMaxMana()+amount).toInt(), true)
+
+    cmd.addHelpCommand("Set or adjust the current or total mana of selected units by the given amount.")
+    ..setOptionDescription("c", "Manipulate the current rather than total mana.")
+    ..setOptionDescription("a", "Adjust the mana rather setting it")
+
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Damage
+@configurable public function defineUtilCommand_Damage()
+    
+    let cmd = defineUtilCommand("damage")
+    ..addArgument(ArgumentType.INT)
+    ..addOptionSwitch("a")
+    ..addOptionInt("i", 0)
+    ..setAction() (p,args,opts) ->
+        var amount = args.getInt()
+        var index = opts.getInt("i")
+
+        forUnitsSelected(p) u ->
+            if( opts.getSwitch("a"))
+                u.setBaseDamage(amount+u.getBaseDamage(index), index)
+            else
+                u.setBaseDamage(amount, index)
+
+    cmd.addHelpCommand("Set or adjust the damage of selected units by the given amount.")
+    ..setOptionDescription("a", "Adjust the damage rather setting it")
+    ..setOptionDescription("i", "The Weapon Index to adjust damage for (either 0 or 1)")
+
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Armor
+@configurable public function defineUtilCommand_Armor()
+    
+    let cmd = defineUtilCommand("armor")
+    ..addArgument(ArgumentType.INT)
+    ..addOptionSwitch("a")
+    ..setAction() (p,args,opts) ->
+        var amount = args.getInt()
+
+        forUnitsSelected(p) u ->
+            if( opts.getSwitch("a"))
+                u.setArmor(amount+u.getArmor())
+            else
+                u.setArmor(amount.toReal())
+
+    cmd.addHelpCommand("Set or adjust the armor of selected units by the given amount.")
+    ..setOptionDescription("a", "Adjust the armor rather setting it")
+
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Move Speed
+@configurable public function defineUtilCommand_MoveSpeed()
+    
+    let cmd = defineUtilCommand("movespeed")
+    ..addArgument(ArgumentType.INT)
+    ..addOptionSwitch("a")
+    ..setAction() (p,args,opts) ->
+        var amount = args.getInt()
+
+        forUnitsSelected(p) u ->
+            if( opts.getSwitch("a"))
+                u.setMoveSpeed(amount+u.getMoveSpeed())
+            else
+                u.setMoveSpeed(amount.toReal())
+
+    cmd.addHelpCommand("Set or adjust the movement pseeed of selected units by the given amount.")
+    ..setOptionDescription("a", "Adjust with the value rather setting it")
+
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Restore
+@configurable public function defineUtilCommand_Restore()
+
+    let cmd = defineUtilCommand("restore")
+    ..addOptionSwitch("h")
+    ..addOptionSwitch("m")
+    ..addOptionInt("a", 0)
+    ..setAction() (p, args, opts) ->
+        var amount = opts.getInt("a")
+        let restoreHealth = opts.getSwitch("h") or not opts.getSwitch("m")
+        let restoreMana = opts.getSwitch("m") or not opts.getSwitch("h")
+        forUnitsSelected(p) (u) ->
+            if( restoreHealth )
+                if( amount > 0 )
+                    u.addHP(amount.toReal())
+                else
+                    u.setHP(u.getMaxHP())
+            if( restoreMana )
+                if( amount > 0 )
+                    u.addMana(amount.toReal())
+                else
+                    u.setMana(u.getMaxMana())
+            p.print("Restored "+u.getName())
+    cmd.addHelpCommand("Restore the health and/or mana of selected units.")
+    ..setOptionDescription("a", " Amount of mana and health to restore. If less than 1 it will restore to full.")
+    ..setOptionDescription("h", " Restore only health.")
+    ..setOptionDescription("m", "Restore only mana.")
+
+            
+
+
+
+
 
 
