@@ -183,17 +183,12 @@ public class Command
     
     
     private function addArgument( ArgumentType argumentType, boolean isList )
-        if( subCommands.size() > 0  )
-            commandError("Cannot add argument to command with sub commands")
         if( arguments.peek() != null and arguments.peek().isList )
             commandError("No arguments may preceed list argument")
 
         arguments.add( new Argument(argumentType, isList ))
 
-    private function addOption( string option, ArgumentType argumentType, string defaultValue )
-        if( subCommands.size() > 0  )
-            commandError("Cannot add option {0} to command with sub commands".format(option) )
-        
+    private function addOption( string option, ArgumentType argumentType, string defaultValue )        
         if( options.has(option) )
             commandError("Option {0} already exists".format(option))
 
