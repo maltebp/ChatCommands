@@ -1,5 +1,5 @@
 package UtilCommands
-import ChatCommands
+import public ChatCommands
 import LinkedList
 import ObjectIds
 import ErrorHandling

@@ -1,8 +1,9 @@
 package CC_ChatCommand
 
+import public  CC_ArgumentType
+
 import LinkedList
 import HashMap
-import CC_ArgumentType
 import ErrorHandling
 
 
