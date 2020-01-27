@@ -159,7 +159,7 @@ public function Command.addHelpCommand(string description) returns HelpAction
 @configurable public let HIGHTLIGHT_COLOR = color(255, 204, 0)
 
 /** Add a highlight color to the text string */
-function string.highlight() returns string
+public function string.highlight() returns string
     return HIGHTLIGHT_COLOR.toColorString() + this + "|r"
                         
 
