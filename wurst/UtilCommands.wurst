@@ -303,6 +303,20 @@ init
     cmd.addHelpCommand("Remove selected units.")
 
 
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Move Unit
+@configurable public function defineUtilCommand_MoveUnit()
+    let cmd = defineUtilCommand("move")
+    ..setAction() (p, args, opts) ->
+        let pos = p .getMousePos()
+        p.print("\nMoving units".highlight(), 10)
+        forUnitsSelected(p) u ->
+            u.setPos(pos)
+
+    cmd.addHelpCommand("Move selected units to current mouse position.")
+    
+
+
 
 
 
@@ -605,7 +619,7 @@ init
     ..addOptionInt("p", -1)
     ..addOptionSwitch("a")
     ..setAction() (p, args, opts) ->
-        var amount = opts.getInt("a")
+        let amount = opts.getInt("a")
         var playerId = opts.getInt("p")
         if( playerId == -1 )
             playerId = p.getId()
@@ -629,7 +643,7 @@ init
     ..addOptionInt("p", -1)
     ..addOptionSwitch("a")
     ..setAction() (p, args, opts) ->
-        var amount = opts.getInt("a")
+        let amount = opts.getInt("a")
         var playerId = opts.getInt("p")
         if( playerId == -1 )
             playerId = p.getId()
