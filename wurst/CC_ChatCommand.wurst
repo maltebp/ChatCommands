@@ -7,6 +7,30 @@ import HashMap
 import ErrorHandling
 
 
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Chat Command created action
+
+interface ChatCommandCreatedAction
+    function run(Command commmand)
+
+let commandCreatedActions = new LinkedList<ChatCommandCreatedAction>
+
+public function onChatCommandCreated( ChatCommandCreatedAction action)
+    commandCreatedActions.add(action)
+
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Command destroyed action
+
+interface CommandDestroyedAction
+    function run(Command command)
+
+let commandDestroyedActions = new LinkedList<CommandDestroyedAction>
+
+public function onCommandDestroyed(CommandDestroyedAction action)
+    commandDestroyedActions.add(action)
+
+
 public class ChatCommand extends Command
 
     protected static let commandMap = new IterableMap<string, thistype>
@@ -52,11 +76,6 @@ public class ChatCommand extends Command
     static function getCommandMap() returns IterableMap<string, ChatCommand>
         return commandMap
 
-    
-
-    
-
-    
 
 public interface CommandAction
     function run(player whichPlayer, ArgumentList arguments, OptionList options)
@@ -204,29 +223,6 @@ public class Command
         for commandString in ChatCommand.commandMap
             destroy  ChatCommand.commandMap.getAndRemove(commandString)
 
-
-
-//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Chat Command created action
-
-interface ChatCommandCreatedAction
-    function run(Command commmand)
-
-let commandCreatedActions = new LinkedList<ChatCommandCreatedAction>
-
-public function onChatCommandCreated( ChatCommandCreatedAction action)
-    commandCreatedActions.add(action)
-
-//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Command destroyed action
-
-interface CommandDestroyedAction
-    function run(Command command)
-
-let commandDestroyedActions = new LinkedList<CommandDestroyedAction>
-
-public function onCommandDestroyed(CommandDestroyedAction action)
-    commandDestroyedActions.add(action)
 
 
 

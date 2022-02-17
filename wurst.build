@@ -1,5 +1,7 @@
 ---
 projectName: ChatCommand
+dependencies:
+- https://github.com/wurstscript/WurstStdlib2
 buildMapData:
   name: MyMapName
   fileName: MyMapFile
